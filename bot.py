@@ -543,7 +543,7 @@ def main():
             await tasks.handle_proof(update, context)
 
     # Register generic media handler for all non-text content (photos, videos, etc.)
-    application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.VOICE | filters.AUDIO | filters.DOCUMENT, merged_media_handler))
+    application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.VOICE | filters.AUDIO | filters.Document.ALL, merged_media_handler))
     
     # Admin Handlers
     application.add_handler(CommandHandler("admin", admin.admin_main_menu))
