@@ -557,7 +557,8 @@ async def deposit_approve_callback(update: Update, context: ContextTypes.DEFAULT
     d_id = int(query.data.split("_")[1])
     res = db.approve_deposit(d_id)
     
-    if res:\n        u_id, pts = res
+    if res:
+        u_id, pts = res
         # HIGH-03 FIX: DB operations must happen OUTSIDE the try block so they
         # always execute even if the Telegram notification to user fails.
         db.log_transaction(u_id, pts, "DEPOSIT", f"شراء باقة نقاط ({pts} نقطة)")
