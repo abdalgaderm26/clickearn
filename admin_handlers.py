@@ -188,18 +188,34 @@ async def admin_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         exec_func = update.message.reply_text
         
     keyboard = [
-        [InlineKeyboardButton("💳 محفظة USDT (TRC20)", callback_data="set_usdt_start")],
-        [InlineKeyboardButton("🏦 الحساب البنكي (بنكك)", callback_data="set_bank_start")],
-        [InlineKeyboardButton("💎 سعر الـ VIP", callback_data="set_vprice_start")],
-        [InlineKeyboardButton("📈 مضاعف الـ VIP", callback_data="set_vmult_start")],
-        [InlineKeyboardButton("🔙 العودة للقائمة", callback_data="admin_main")]
+        [InlineKeyboardButton("💳 USDT (TRC20)", callback_data="set_usdt_trc20_start"),
+         InlineKeyboardButton("💳 USDT (BEP20)", callback_data="set_usdt_bep20_start")],
+        [InlineKeyboardButton("🏦 بنكك (SDG)", callback_data="set_bankak_start"),
+         InlineKeyboardButton("🏦 فوري (EGP)", callback_data="set_fawry_start")],
+        [InlineKeyboardButton("💳 فودافون كاش", callback_data="set_vodafone_start"),
+         InlineKeyboardButton("💎 سعر الـ VIP", callback_data="set_vprice_start")],
+        [InlineKeyboardButton("📈 مضاعف الـ VIP", callback_data="set_vmult_start"),
+         InlineKeyboardButton("🔙 العودة للقائمة", callback_data="admin_main")]
     ]
     
-    usdt = db.get_setting('usdt_wallet', 'غير محدد')
+    trc20 = db.get_setting('usdt_trc20_wallet', db.get_setting('usdt_wallet', 'غير محدد'))
+    bep20 = db.get_setting('usdt_bep20_wallet', 'غير محدد')
+    bankak = db.get_setting('bankak_details', 'غير محدد').replace('\n', ' | ')
+    fawry = db.get_setting('fawry_details', 'غير محدد')
+    vf = db.get_setting('vodafone_details', 'غير محدد')
     v_mult = db.get_setting('vip_multiplier', '2.0')
     v_price = db.get_setting('vip_price', '1000')
     
-    msg = f"⚙️ **إعدادات المنصة العالمية**\n\n💰 **USDT:** `{usdt}`\n📈 **VIP Multiplier:** `{v_mult}x`\n💎 **VIP Price:** `{v_price}` pts\n\nاختر الإعداد الذي تود تعديله:"
+    msg = (
+        f"⚙️ **إعدادات طرق الدفع والمنصة**\n\n"
+        f"🟡 **TRC20:** `{trc20}`\n"
+        f"🟠 **BEP20:** `{bep20}`\n"
+        f"🇸🇩 **بنكك:** `{bankak[:20]}...`\n"
+        f"🇪🇬 **فوري:** `{fawry}`\n"
+        f"🇪🇬 **فودافون كاش:** `{vf}`\n"
+        f"📈 **مضاعف VIP:** `{v_mult}x` | 💎 **سعر VIP:** `{v_price}` pts\n\n"
+        f"اختر الإعداد الذي تود تعديله:"
+    )
     
     await exec_func(
         msg,
@@ -217,8 +233,11 @@ async def admin_setting_edit_start(update: Update, context: ContextTypes.DEFAULT
     context.user_data['awaiting_admin_setting'] = setting_type
     
     labels = {
-        "set_usdt_start": "محفظة USDT (TRC20)",
-        "set_bank_start": "بيانات الحساب البنكي",
+        "set_usdt_trc20_start": "محفظة USDT (TRC20)",
+        "set_usdt_bep20_start": "محفظة USDT (BEP20)",
+        "set_bankak_start": "بيانات حساب (بنكك)",
+        "set_fawry_start": "رقم حساب (فوري)",
+        "set_vodafone_start": "رقم (فودافون كاش)",
         "set_vprice_start": "سعر اشتراك الـ VIP (بالنقاط)",
         "set_vmult_start": "مضاعف أرباح الـ VIP (مثلاً 2.0)"
     }
@@ -237,14 +256,18 @@ async def handle_admin_setting_input(update: Update, context: ContextTypes.DEFAU
     new_val = update.message.text
     
     map_keys = {
-        "set_usdt_start": "usdt_wallet",
-        "set_bank_start": "bankak_details",
+        "set_usdt_trc20_start": "usdt_trc20_wallet",
+        "set_usdt_bep20_start": "usdt_bep20_wallet",
+        "set_bankak_start": "bankak_details",
+        "set_fawry_start": "fawry_details",
+        "set_vodafone_start": "vodafone_details",
         "set_vprice_start": "vip_price",
         "set_vmult_start": "vip_multiplier"
     }
     
     db_key = map_keys.get(setting_type)
-    db.set_setting(db_key, new_val)
+    if db_key:
+        db.set_setting(db_key, new_val)
     
     del context.user_data['awaiting_admin_setting']
     
@@ -474,19 +497,18 @@ async def wizard_pkg_points_callback(update: Update, context: ContextTypes.DEFAU
     context.user_data['wizard_step'] = 'pkg_currency'
     
     keyboard = [
-        [InlineKeyboardButton("🇸🇩 SDG", callback_data="wiz_pkg_curr_SDG"),
-         InlineKeyboardButton("💵 USD", callback_data="wiz_pkg_curr_USD")],
-        [InlineKeyboardButton("💶 EUR", callback_data="wiz_pkg_curr_EUR"),
-         InlineKeyboardButton("🪙 USDT", callback_data="wiz_pkg_curr_USDT")],
-        [InlineKeyboardButton("🇸🇦 SAR", callback_data="wiz_pkg_curr_SAR"),
-         InlineKeyboardButton("🇦🇪 AED", callback_data="wiz_pkg_curr_AED")],
+        [InlineKeyboardButton("🇸🇩 بنكك (SDG)", callback_data="wiz_pkg_curr_SDG_bankak"),
+         InlineKeyboardButton("🇪🇬 فوري (EGP)", callback_data="wiz_pkg_curr_EGP_fawry")],
+        [InlineKeyboardButton("🇪🇬 فودافون كاش", callback_data="wiz_pkg_curr_EGP_vodafone")],
+        [InlineKeyboardButton("🪙 USDT (TRC20)", callback_data="wiz_pkg_curr_USDT_trc20"),
+         InlineKeyboardButton("🪙 USDT (BEP20)", callback_data="wiz_pkg_curr_USDT_bep20")],
         [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]
     ]
     
     await query.edit_message_text(
         f"📦 **معالج إضافة باقة شحن جديدة**\n\n"
         f"✅ النقاط: **{pts}** نقطة\n\n"
-        f"📌 **الخطوة 2/3:** اختر العملة:",
+        f"📌 **الخطوة 2/3:** اختر وسيلة الدفع للباقة:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
@@ -503,12 +525,15 @@ async def wizard_pkg_currency_callback(update: Update, context: ContextTypes.DEF
     
     pts = context.user_data.get('wiz_pkg_pts', 0)
     
+    # Extract friendly name for the display
+    display_curr = curr.replace('_', ' ')
+    
     await query.edit_message_text(
         f"📦 **معالج إضافة باقة شحن جديدة**\n\n"
         f"✅ النقاط: **{pts}** نقطة\n"
-        f"✅ العملة: **{curr}**\n\n"
+        f"✅ وسيلة الدفع: **{display_curr}**\n\n"
         f"📌 **الخطوة 3/3:** أرسل الآن سعر الباقة (رقم فقط):\n"
-        f"مثال: `5000`",
+        f"مثال: `5` او `5000`",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]]),
         parse_mode="Markdown"
     )
@@ -565,20 +590,39 @@ async def handle_wizard_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             return True
         
         pts = context.user_data.get('wiz_pkg_pts', 0)
-        curr = context.user_data.get('wiz_pkg_curr', 'SDG')
+        curr_raw = context.user_data.get('wiz_pkg_curr', 'SDG_bankak')
         
-        instr = db.get_setting('bankak_details') if curr == "SDG" else db.get_setting('usdt_wallet', 'Contact admin.')
+        parts = curr_raw.split('_')
+        curr = parts[0]
+        method = parts[1] if len(parts) > 1 else 'default'
+        
+        # Base instruction resolution
+        if method == "bankak":
+            instr = db.get_setting('bankak_details', 'تواصل مع الإدارة.')
+        elif method == "fawry":
+            instr = db.get_setting('fawry_details', 'تواصل مع الإدارة.')
+        elif method == "vodafone":
+            instr = db.get_setting('vodafone_details', 'تواصل مع الإدارة.')
+        elif method == "trc20":
+            instr = db.get_setting('usdt_trc20_wallet', db.get_setting('usdt_wallet', 'تواصل مع الإدارة.'))
+            curr = "USDT (TRC20)"
+        elif method == "bep20":
+            instr = db.get_setting('usdt_bep20_wallet', 'تواصل مع الإدارة.')
+            curr = "USDT (BEP20)"
+        else:
+            instr = 'تواصل مع الإدارة.'
         
         try:
             db.add_package(pts, price, curr, instr)
             db.log_admin_action(c.ADMIN_ID, "ADD_PACKAGE", None)
             
             await update.message.reply_text(
-                f"🎉 **تم إضافة الباقة بنجاح!**\n\n"
+                f"🎉 **تم إضافة الباقة بنجاح للمتجر!**\n\n"
                 f"📦 النقاط: **{pts}**\n"
-                f"💰 السعر: **{price} {curr}**",
+                f"💰 السعر: **{price} {curr}**\n"
+                f"📝 وسيلة الدفع التي ستظهر للمستخدم:\n`{instr}`",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📦 إضافة باقة أخرى", callback_data="admin_add_pkg_start")],
+                    [InlineKeyboardButton("📦 إضافة إضافة أخرى", callback_data="admin_add_pkg_start")],
                     [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
                 ]),
                 parse_mode="Markdown"
