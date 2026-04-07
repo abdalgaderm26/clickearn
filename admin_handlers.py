@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import database as db
@@ -14,8 +15,40 @@ def get_str(user_id, key, **kwargs):
         return text.format(**kwargs)
     return text
 
+# ==========================================
+# MODERATOR SYSTEM
+# ==========================================
+
+def get_moderators():
+    """Get list of moderator IDs from database settings."""
+    mods_str = db.get_setting('moderators', '')
+    if not mods_str:
+        return []
+    return [int(x.strip()) for x in mods_str.split(',') if x.strip().isdigit()]
+
+def is_staff(user_id):
+    """Check if user is the main admin OR a moderator."""
+    if user_id == c.ADMIN_ID:
+        return True
+    return user_id in get_moderators()
+
+def is_main_admin(user_id):
+    """Check if user is the MAIN admin (not just moderator)."""
+    return user_id == c.ADMIN_ID
+
+def add_moderator(mod_id):
+    mods = get_moderators()
+    if mod_id not in mods:
+        mods.append(mod_id)
+    db.set_setting('moderators', ','.join(str(m) for m in mods))
+
+def remove_moderator(mod_id):
+    mods = get_moderators()
+    mods = [m for m in mods if m != mod_id]
+    db.set_setting('moderators', ','.join(str(m) for m in mods))
+
 async def pending_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_staff(update.effective_user.id):
         return
         
     task_count, withd_count = db.get_pending_counts()
@@ -38,7 +71,7 @@ async def pending_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def review_tasks_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_staff(update.effective_user.id):
         return
     query = update.callback_query
     await query.answer()
@@ -58,17 +91,18 @@ async def review_tasks_callback(update: Update, context: ContextTypes.DEFAULT_TY
         [InlineKeyboardButton("🔙 العودة للقائمة", callback_data="admin_main")]
     ]
     
+    chat_id = update.effective_chat.id
     await query.message.delete()
     await context.bot.send_photo(
-        c.ADMIN_ID,
+        chat_id,
         photo=photo_id,
-        caption=get_str(c.ADMIN_ID, 'NEW_SUBMISSION_MSG').format(user_id=user_id, url=task_info[1], reward=task_info[3]),
+        caption=get_str(chat_id, 'NEW_SUBMISSION_MSG').format(user_id=user_id, url=task_info[1], reward=task_info[3]),
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
 async def review_withd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_staff(update.effective_user.id):
         return
     query = update.callback_query
     await query.answer()
@@ -87,14 +121,15 @@ async def review_withd_callback(update: Update, context: ContextTypes.DEFAULT_TY
         [InlineKeyboardButton("🔙 العودة للقائمة", callback_data="admin_main")]
     ]
     
+    uid = update.effective_user.id
     await query.edit_message_text(
-        get_str(c.ADMIN_ID, 'ADMIN_NEW_WITHDRAW_MSG').format(user_id=user_id, amount=amount, method=method, details=details),
+        get_str(uid, 'ADMIN_NEW_WITHDRAW_MSG').format(user_id=user_id, amount=amount, method=method, details=details),
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
 async def withdraw_approve_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_staff(update.effective_user.id):
         return
     query = update.callback_query
     await query.answer()
@@ -113,7 +148,7 @@ async def withdraw_approve_callback(update: Update, context: ContextTypes.DEFAUL
         await query.edit_message_text("❌ **خطأ في المعالجة.**")
 
 async def withdraw_reject_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_staff(update.effective_user.id):
         return
     query = update.callback_query
     await query.answer()
@@ -132,7 +167,7 @@ async def withdraw_reject_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text("❌ **خطأ في المعالجة.**")
 
 async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_staff(update.effective_user.id):
         return
     query = update.callback_query
     await query.answer()
@@ -278,12 +313,12 @@ async def handle_admin_setting_input(update: Update, context: ContextTypes.DEFAU
 
 async def admin_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    logger.info(f"👮 Admin Attempt: User {user_id} | Required: {c.ADMIN_ID}")
+    logger.info(f"👮 Admin Attempt: User {user_id} | Required: {c.ADMIN_ID} | Mods: {get_moderators()}")
 
     try:
-        if user_id != c.ADMIN_ID:
-            logger.warning(f"🚫 Denied: {user_id} != {c.ADMIN_ID}")
-            msg = f"❌ **عذراً! أنت لست مديراً.**\n\n👤 الأيدي الخاص بك: `{user_id}`\n🔑 الأيدي المسجل: `{c.ADMIN_ID}`\n\nيرجى مطابقة الأرقام في Railway."
+        if not is_staff(user_id):
+            logger.warning(f"🚫 Denied: {user_id} is not staff")
+            msg = f"❌ **عذراً! أنت لست مديراً أو مشرفاً.**\n\n👤 الأيدي الخاص بك: `{user_id}`"
             if update.callback_query:
                 await update.callback_query.answer(msg, show_alert=True)
             else:
@@ -291,7 +326,8 @@ async def admin_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         total_users, total_points = db.get_stats()
-        text = get_str(user_id, 'ADMIN_DASHBOARD_OVERVIEW', total_users=total_users, total_points=total_points)
+        role = "👑 المدير العام" if is_main_admin(user_id) else "🛡️ مشرف"
+        text = f"{role}\n\n" + get_str(user_id, 'ADMIN_DASHBOARD_OVERVIEW', total_users=total_users, total_points=total_points)
 
         m_mode = db.get_setting('maintenance_mode', 'off')
         m_icon = "🟢" if m_mode == 'off' else "🔴"
@@ -299,9 +335,9 @@ async def admin_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if update.callback_query:
             await update.callback_query.answer()
-            await update.callback_query.edit_message_text(text, reply_markup=await admin_buttons_keyboard(), parse_mode="Markdown")
+            await update.callback_query.edit_message_text(text, reply_markup=await admin_buttons_keyboard(user_id), parse_mode="Markdown")
         else:
-            await update.message.reply_text(text, reply_markup=await admin_buttons_keyboard(), parse_mode="Markdown")
+            await update.message.reply_text(text, reply_markup=await admin_buttons_keyboard(user_id), parse_mode="Markdown")
 
         logger.info(f"✅ Admin menu sent to {user_id}")
 
@@ -316,7 +352,7 @@ async def admin_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(error_msg, parse_mode="Markdown")
 
-async def admin_buttons_keyboard():
+async def admin_buttons_keyboard(user_id=None):
     m_mode = db.get_setting('maintenance_mode', 'off')
     m_text = "🛠️ تفعيل الصيانة" if m_mode == 'off' else "✅ إنهاء الصيانة"
     
@@ -325,15 +361,21 @@ async def admin_buttons_keyboard():
         [InlineKeyboardButton("➕ إضافة مهمة", callback_data="admin_add_task_start"),
          InlineKeyboardButton("📦 إضافة باقة", callback_data="admin_add_pkg_start")],
         [InlineKeyboardButton("🛡️ إدارة المستخدمين", callback_data="admin_users_menu"),
-         InlineKeyboardButton("⚙️ إعدادات النظام", callback_data="admin_settings")],
-        [InlineKeyboardButton("🔧 إعدادات متقدمة", callback_data="admin_advanced_settings"),
          InlineKeyboardButton("📈 الإحصائيات", callback_data="admin_stats")],
-        [InlineKeyboardButton("📢 إرسال جماعي", callback_data="admin_broadcast"),
-         InlineKeyboardButton("💾 نسخة احتياطية", callback_data="admin_backup")],
-        [InlineKeyboardButton(m_text, callback_data="toggle_maintenance"),
-         InlineKeyboardButton("🔄 تحديث البوت", callback_data="admin_refresh")],
-        [InlineKeyboardButton("📜 سجل الأمان", callback_data="admin_logs_view")]
     ]
+    
+    # Only main admin sees these sensitive buttons
+    if is_main_admin(user_id):
+        keyboard += [
+            [InlineKeyboardButton("⚙️ إعدادات النظام", callback_data="admin_settings"),
+             InlineKeyboardButton("🔧 إعدادات متقدمة", callback_data="admin_advanced_settings")],
+            [InlineKeyboardButton("📢 إرسال جماعي", callback_data="admin_broadcast"),
+             InlineKeyboardButton("💾 نسخة احتياطية", callback_data="admin_backup")],
+            [InlineKeyboardButton("👥 إدارة المشرفين", callback_data="admin_mods_menu")],
+            [InlineKeyboardButton(m_text, callback_data="toggle_maintenance"),
+             InlineKeyboardButton("📜 سجل الأمان", callback_data="admin_logs_view")],
+        ]
+    
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -775,6 +817,78 @@ async def handle_wizard_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             context.user_data.pop(key, None)
         return True
     
+    # --- MODERATOR MANAGEMENT: Add Mod ---
+    if wizard == 'mod_mgmt' and step == 'add_mod':
+        try:
+            mod_id = int(text)
+            if mod_id == c.ADMIN_ID:
+                await update.message.reply_text("❌ **لا يمكنك إضافة نفسك كمشرف — أنت المدير العام بالفعل!**")
+                return True
+            add_moderator(mod_id)
+            db.log_admin_action(c.ADMIN_ID, "ADD_MOD", mod_id)
+            await update.message.reply_text(
+                f"✅ **تم تعيين `{mod_id}` كمشرف بنجاح!**\n\n"
+                f"📌 يمكنه الآن كتابة `/admin` لفتح لوحة التحكم.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("👥 إدارة المشرفين", callback_data="admin_mods_menu")],
+                    [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (الـ User ID).**")
+            return True
+        for key in ['wizard', 'wizard_step']:
+            context.user_data.pop(key, None)
+        return True
+    
+    # --- USER LOOKUP ---
+    if wizard == 'user_lookup' and step == 'lookup_id':
+        try:
+            target_id = int(text)
+            user = db.get_user(target_id)
+            if not user:
+                await update.message.reply_text(
+                    f"❌ **المستخدم `{target_id}` غير موجود في قاعدة البيانات.**",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data="admin_main")]]),
+                    parse_mode="Markdown"
+                )
+            else:
+                uid, username, points, referred_by, last_daily, joined_at, is_banned, is_vip, lang = user[:9]
+                ban_status = "🛑 محظور" if is_banned else "✅ نشط"
+                vip_status = "💎 VIP" if is_vip else "عادي"
+                ref = f"`{referred_by}`" if referred_by else "بدون"
+                
+                keyboard = [
+                    [InlineKeyboardButton("➕ إضافة نقاط", callback_data="admin_wiz_addpts"),
+                     InlineKeyboardButton("➖ خصم نقاط", callback_data="admin_wiz_subpts")],
+                ]
+                if is_banned:
+                    keyboard.append([InlineKeyboardButton("✅ فك الحظر", callback_data="admin_wiz_unban")])
+                else:
+                    keyboard.append([InlineKeyboardButton("🛑 حظر", callback_data="admin_wiz_ban")])
+                keyboard.append([InlineKeyboardButton("🔍 بحث آخر", callback_data="admin_wiz_lookup")])
+                keyboard.append([InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")])
+                
+                await update.message.reply_text(
+                    f"🔍 **معلومات المستخدم**\n\n"
+                    f"🆔 **الأيدي:** `{uid}`\n"
+                    f"👤 **الاسم:** @{username or 'مجهول'}\n"
+                    f"💰 **النقاط:** `{points}`\n"
+                    f"📊 **الحالة:** {ban_status} | {vip_status}\n"
+                    f"👥 **دعوة من:** {ref}\n"
+                    f"📅 **تاريخ الانضمام:** `{joined_at}`\n"
+                    f"🌐 **اللغة:** `{lang}`",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (الـ User ID).**")
+            return True
+        for key in ['wizard', 'wizard_step']:
+            context.user_data.pop(key, None)
+        return True
+    
     return False
 
 
@@ -1111,7 +1225,26 @@ async def toggle_maintenance_callback(update: Update, context: ContextTypes.DEFA
     await admin_main_menu(update, context)
 
 async def admin_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != c.ADMIN_ID:
+    if not is_main_admin(update.effective_user.id):
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ نعم، أعد تشغيل البوت", callback_data="confirm_refresh")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="admin_main")]
+    ]
+    
+    await query.edit_message_text(
+        "⚠️ **تأكيد إعادة تشغيل البوت**\n\n"
+        "هذا سيؤدي إلى توقف البوت لثواني ثم إعادة تشغيله تلقائياً.\n"
+        "هل أنت متأكد؟",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def confirm_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_main_admin(update.effective_user.id):
         return
     query = update.callback_query
     await query.answer()
@@ -1119,11 +1252,9 @@ async def admin_refresh_callback(update: Update, context: ContextTypes.DEFAULT_T
     user_id = update.effective_user.id
     lang = db.get_user_lang(user_id)
     
-    await query.edit_message_text(s.STRINGS[lang]['REFRESH_MSG'], parse_mode="Markdown")
+    await query.edit_message_text("🔄 **جاري إعادة تشغيل البوت...**\nسيعود للعمل خلال ثواني.", parse_mode="Markdown")
     db.log_admin_action(c.ADMIN_ID, "BOT_REFRESH", None)
     
-    # Small delay then exit to trigger Railway restart
-    import sys
     import os
     os._exit(0)
 
@@ -1523,5 +1654,124 @@ async def advset_minwd_callback(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("🔧 الإعدادات المتقدمة", callback_data="admin_advanced_settings")],
             [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
         ]),
+        parse_mode="Markdown"
+    )
+
+
+# ==========================================
+# MODERATOR MANAGEMENT MENU
+# ==========================================
+
+async def admin_mods_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_main_admin(update.effective_user.id):
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    mods = get_moderators()
+    mods_text = "\n".join([f"  • `{m}`" for m in mods]) if mods else "  _لا يوجد مشرفين حالياً_"
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ إضافة مشرف", callback_data="admin_wiz_addmod"),
+         InlineKeyboardButton("➖ إزالة مشرف", callback_data="admin_wiz_removemod")],
+        [InlineKeyboardButton("🔍 بحث عن مستخدم", callback_data="admin_wiz_lookup")],
+        [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+    ]
+    
+    await query.edit_message_text(
+        f"👥 **إدارة المشرفين**\n\n"
+        f"📋 **المشرفين الحاليين** ({len(mods)}):\n{mods_text}\n\n"
+        f"ℹ️ المشرفون يمكنهم:\n"
+        f"  • مراجعة المهام والموافقة/الرفض\n"
+        f"  • مراجعة طلبات السحب\n"
+        f"  • إضافة مهام وباقات\n"
+        f"  • إدارة المستخدمين (حظر/نقاط)\n\n"
+        f"⚠️ **لا يمكنهم:** تغيير الإعدادات أو إرسال جماعي أو إضافة مشرفين.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_addmod_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_main_admin(update.effective_user.id):
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'mod_mgmt'
+    context.user_data['wizard_step'] = 'add_mod'
+    
+    await query.edit_message_text(
+        "➕ **إضافة مشرف جديد**\n\n"
+        "📌 أرسل رقم المستخدم (User ID) الذي تريد تعيينه مشرفاً:\n"
+        "مثال: `5047634413`\n\n"
+        "💡 يمكن للمستخدم معرفة الـ ID الخاص به عبر بوت @userinfobot",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_mods_menu")]]),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_removemod_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_main_admin(update.effective_user.id):
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    mods = get_moderators()
+    if not mods:
+        await query.edit_message_text(
+            "❌ **لا يوجد مشرفين حالياً لإزالتهم.**",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data="admin_mods_menu")]]),
+            parse_mode="Markdown"
+        )
+        return
+    
+    keyboard = []
+    for m in mods:
+        keyboard.append([InlineKeyboardButton(f"❌ إزالة {m}", callback_data=f"confirm_rmmod_{m}")])
+    keyboard.append([InlineKeyboardButton("🔙 إلغاء", callback_data="admin_mods_menu")])
+    
+    await query.edit_message_text(
+        "➖ **إزالة مشرف**\n\nاختر المشرف الذي تريد إزالته:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def confirm_remove_mod_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_main_admin(update.effective_user.id):
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    mod_id = int(query.data.replace("confirm_rmmod_", ""))
+    remove_moderator(mod_id)
+    db.log_admin_action(c.ADMIN_ID, "REMOVE_MOD", mod_id)
+    
+    await query.edit_message_text(
+        f"✅ **تمت إزالة المشرف `{mod_id}` بنجاح!**",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 إدارة المشرفين", callback_data="admin_mods_menu")],
+            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+        ]),
+        parse_mode="Markdown"
+    )
+
+
+# ==========================================
+# USER LOOKUP (Search User Info)
+# ==========================================
+
+async def admin_wiz_lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_staff(update.effective_user.id):
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'user_lookup'
+    context.user_data['wizard_step'] = 'lookup_id'
+    
+    await query.edit_message_text(
+        "🔍 **بحث عن مستخدم**\n\n"
+        "📌 أرسل رقم المستخدم (User ID) للبحث عنه:\n"
+        "مثال: `5047634413`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]]),
         parse_mode="Markdown"
     )

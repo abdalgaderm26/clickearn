@@ -441,8 +441,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("✅ تم الإلغاء.", parse_mode="Markdown")
             return
 
-    # 2. Admin Logic
-    if user_id == c.ADMIN_ID:
+    # 2. Staff Logic (Admin + Moderators)
+    if admin.is_staff(user_id):
         if await admin.handle_wizard_input(update, context):
             return
         if context.user_data.get('awaiting_admin_setting'):
@@ -561,6 +561,15 @@ def main():
     application.add_handler(CallbackQueryHandler(admin.advset_commission_callback, pattern="^advset_comm_"))
     application.add_handler(CallbackQueryHandler(admin.admin_wiz_minwd_start, pattern="^admin_wiz_minwd$"))
     application.add_handler(CallbackQueryHandler(admin.advset_minwd_callback, pattern="^advset_minwd_"))
+    # Moderator Management
+    application.add_handler(CallbackQueryHandler(admin.admin_mods_menu, pattern="^admin_mods_menu$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_addmod_start, pattern="^admin_wiz_addmod$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_removemod_start, pattern="^admin_wiz_removemod$"))
+    application.add_handler(CallbackQueryHandler(admin.confirm_remove_mod_callback, pattern="^confirm_rmmod_"))
+    # User Lookup
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_lookup_start, pattern="^admin_wiz_lookup$"))
+    # Refresh confirmation
+    application.add_handler(CallbackQueryHandler(admin.confirm_refresh_callback, pattern="^confirm_refresh$"))
     application.add_handler(CallbackQueryHandler(admin.admin_logs_view_callback, pattern="^admin_logs_view$"))
     application.add_handler(CallbackQueryHandler(admin.pending_dashboard, pattern="^admin_pending$"))
     application.add_handler(CallbackQueryHandler(admin.toggle_maintenance_callback, pattern="^toggle_maintenance$"))
