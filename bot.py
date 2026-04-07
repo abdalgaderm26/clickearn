@@ -434,7 +434,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'promo_step', 'promo_url', 'promo_budget', 'promo_reward',
                     'awaiting_admin_setting', 'replyING_to', 'admin_action',
                     'wizard', 'wizard_step', 'wiz_task_type', 'wiz_task_url',
-                    'wiz_task_reward', 'wiz_pkg_pts', 'wiz_pkg_curr']:
+                    'wiz_task_reward', 'wiz_pkg_pts', 'wiz_pkg_curr', 'wiz_target_id']:
             context.user_data.pop(key, None)
         
         if text == "/cancel":
@@ -533,12 +533,6 @@ def main():
     application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.VOICE | filters.AUDIO | filters.Document.ALL, merged_media_handler))
     
     application.add_handler(CommandHandler("admin", admin.admin_main_menu))
-    application.add_handler(CommandHandler("add_task", admin.add_task_cmd))
-    application.add_handler(CommandHandler("set_api_key", admin.set_api_key_cmd))
-    application.add_handler(CommandHandler("set_setting", admin.set_setting_cmd))
-    application.add_handler(CommandHandler("add_package", admin.add_package_cmd))
-    application.add_handler(CommandHandler("ban", admin.ban_user_cmd))
-    application.add_handler(CommandHandler("unban", admin.unban_user_cmd))
     
     application.add_handler(CallbackQueryHandler(admin.admin_main_menu, pattern="^admin_main$"))
     application.add_handler(CallbackQueryHandler(admin.stats_callback, pattern="^admin_stats$"))
@@ -554,6 +548,19 @@ def main():
     # Wizard: Package points, currency
     application.add_handler(CallbackQueryHandler(admin.wizard_pkg_points_callback, pattern="^wiz_pkg_pts_"))
     application.add_handler(CallbackQueryHandler(admin.wizard_pkg_currency_callback, pattern="^wiz_pkg_curr_"))
+    # User Management Menu
+    application.add_handler(CallbackQueryHandler(admin.admin_users_menu, pattern="^admin_users_menu$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_ban_start, pattern="^admin_wiz_ban$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_unban_start, pattern="^admin_wiz_unban$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_addpts_start, pattern="^admin_wiz_addpts$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_subpts_start, pattern="^admin_wiz_subpts$"))
+    # Advanced Settings Menu
+    application.add_handler(CallbackQueryHandler(admin.admin_advanced_settings, pattern="^admin_advanced_settings$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_apikey_start, pattern="^admin_wiz_apikey$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_commission_start, pattern="^admin_wiz_commission$"))
+    application.add_handler(CallbackQueryHandler(admin.advset_commission_callback, pattern="^advset_comm_"))
+    application.add_handler(CallbackQueryHandler(admin.admin_wiz_minwd_start, pattern="^admin_wiz_minwd$"))
+    application.add_handler(CallbackQueryHandler(admin.advset_minwd_callback, pattern="^advset_minwd_"))
     application.add_handler(CallbackQueryHandler(admin.admin_logs_view_callback, pattern="^admin_logs_view$"))
     application.add_handler(CallbackQueryHandler(admin.pending_dashboard, pattern="^admin_pending$"))
     application.add_handler(CallbackQueryHandler(admin.toggle_maintenance_callback, pattern="^toggle_maintenance$"))

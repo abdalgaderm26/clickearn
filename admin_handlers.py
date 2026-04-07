@@ -324,7 +324,9 @@ async def admin_buttons_keyboard():
         [InlineKeyboardButton("📋 مراجعة الطلبات", callback_data="admin_pending")],
         [InlineKeyboardButton("➕ إضافة مهمة", callback_data="admin_add_task_start"),
          InlineKeyboardButton("📦 إضافة باقة", callback_data="admin_add_pkg_start")],
-        [InlineKeyboardButton("⚙️ إعدادات النظام", callback_data="admin_settings"), 
+        [InlineKeyboardButton("🛡️ إدارة المستخدمين", callback_data="admin_users_menu"),
+         InlineKeyboardButton("⚙️ إعدادات النظام", callback_data="admin_settings")],
+        [InlineKeyboardButton("🔧 إعدادات متقدمة", callback_data="admin_advanced_settings"),
          InlineKeyboardButton("📈 الإحصائيات", callback_data="admin_stats")],
         [InlineKeyboardButton("📢 إرسال جماعي", callback_data="admin_broadcast"),
          InlineKeyboardButton("💾 نسخة احتياطية", callback_data="admin_backup")],
@@ -632,6 +634,144 @@ async def handle_wizard_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         # Clean wizard state
         for key in ['wizard', 'wizard_step', 'wiz_pkg_pts', 'wiz_pkg_curr']:
+            context.user_data.pop(key, None)
+        return True
+    
+    # --- USER MANAGEMENT: Ban ---
+    if wizard == 'user_mgmt' and step == 'ban_user':
+        try:
+            target_id = int(text)
+            db.ban_user(target_id)
+            db.log_admin_action(c.ADMIN_ID, "BAN_USER", target_id)
+            await update.message.reply_text(
+                f"🛑 **تم حظر المستخدم `{target_id}` بنجاح!**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🛡️ إدارة المستخدمين", callback_data="admin_users_menu")],
+                    [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (الـ User ID).**")
+            return True
+        for key in ['wizard', 'wizard_step']:
+            context.user_data.pop(key, None)
+        return True
+    
+    # --- USER MANAGEMENT: Unban ---
+    if wizard == 'user_mgmt' and step == 'unban_user':
+        try:
+            target_id = int(text)
+            db.unban_user(target_id)
+            db.log_admin_action(c.ADMIN_ID, "UNBAN_USER", target_id)
+            await update.message.reply_text(
+                f"✅ **تم فك حظر المستخدم `{target_id}` بنجاح!**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🛡️ إدارة المستخدمين", callback_data="admin_users_menu")],
+                    [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (الـ User ID).**")
+            return True
+        for key in ['wizard', 'wizard_step']:
+            context.user_data.pop(key, None)
+        return True
+    
+    # --- USER MANAGEMENT: Add Points Step 1 (get user ID) ---
+    if wizard == 'user_mgmt' and step == 'addpts_id':
+        try:
+            target_id = int(text)
+            context.user_data['wiz_target_id'] = target_id
+            context.user_data['wizard_step'] = 'addpts_amount'
+            await update.message.reply_text(
+                f"➕ **إضافة نقاط لمستخدم**\n\n"
+                f"✅ المستخدم: `{target_id}`\n\n"
+                f"📌 **الخطوة 2/2:** أرسل عدد النقاط المطلوب إضافتها:\n"
+                f"مثال: `500`",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_users_menu")]]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (الـ User ID).**")
+        return True
+    
+    # --- USER MANAGEMENT: Add Points Step 2 (get amount) ---
+    if wizard == 'user_mgmt' and step == 'addpts_amount':
+        try:
+            amount = int(text)
+            target_id = context.user_data.get('wiz_target_id')
+            db.add_points(target_id, amount)
+            db.log_admin_action(c.ADMIN_ID, "ADD_POINTS", target_id)
+            await update.message.reply_text(
+                f"✅ **تم إضافة {amount} نقطة للمستخدم `{target_id}` بنجاح!**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🛡️ إدارة المستخدمين", callback_data="admin_users_menu")],
+                    [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط.**")
+            return True
+        for key in ['wizard', 'wizard_step', 'wiz_target_id']:
+            context.user_data.pop(key, None)
+        return True
+    
+    # --- USER MANAGEMENT: Sub Points Step 1 (get user ID) ---
+    if wizard == 'user_mgmt' and step == 'subpts_id':
+        try:
+            target_id = int(text)
+            context.user_data['wiz_target_id'] = target_id
+            context.user_data['wizard_step'] = 'subpts_amount'
+            await update.message.reply_text(
+                f"➖ **خصم نقاط من مستخدم**\n\n"
+                f"✅ المستخدم: `{target_id}`\n\n"
+                f"📌 **الخطوة 2/2:** أرسل عدد النقاط المطلوب خصمها:\n"
+                f"مثال: `500`",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_users_menu")]]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (الـ User ID).**")
+        return True
+    
+    # --- USER MANAGEMENT: Sub Points Step 2 (get amount) ---
+    if wizard == 'user_mgmt' and step == 'subpts_amount':
+        try:
+            amount = int(text)
+            target_id = context.user_data.get('wiz_target_id')
+            db.deduct_points(target_id, amount)
+            db.log_admin_action(c.ADMIN_ID, "SUB_POINTS", target_id)
+            await update.message.reply_text(
+                f"✅ **تم خصم {amount} نقطة من المستخدم `{target_id}` بنجاح!**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🛡️ إدارة المستخدمين", callback_data="admin_users_menu")],
+                    [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط.**")
+            return True
+        for key in ['wizard', 'wizard_step', 'wiz_target_id']:
+            context.user_data.pop(key, None)
+        return True
+    
+    # --- ADVANCED SETTINGS: API Key ---
+    if wizard == 'adv_settings' and step == 'set_apikey':
+        db.set_setting('google_api_key', text)
+        db.log_admin_action(c.ADMIN_ID, "SET_API_KEY", None)
+        await update.message.reply_text(
+            f"✅ **تم تحديث مفتاح Gemini API بنجاح!**\n`{text[:15]}...`",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔧 الإعدادات المتقدمة", callback_data="admin_advanced_settings")],
+                [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+            ]),
+            parse_mode="Markdown"
+        )
+        for key in ['wizard', 'wizard_step']:
             context.user_data.pop(key, None)
         return True
     
@@ -1142,3 +1282,246 @@ async def handle_broadcast_input(update: Update, context: ContextTypes.DEFAULT_T
     )
     db.log_admin_action(c.ADMIN_ID, "BROADCAST_ALL", count)
     return True
+
+
+# ==========================================
+# USER MANAGEMENT MENU (Ban/Unban/Points)
+# ==========================================
+
+async def admin_users_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("🛑 حظر مستخدم", callback_data="admin_wiz_ban"),
+         InlineKeyboardButton("✅ فك الحظر", callback_data="admin_wiz_unban")],
+        [InlineKeyboardButton("➕ إضافة نقاط", callback_data="admin_wiz_addpts"),
+         InlineKeyboardButton("➖ خصم نقاط", callback_data="admin_wiz_subpts")],
+        [InlineKeyboardButton("🔙 العودة للقائمة", callback_data="admin_main")]
+    ]
+    
+    await query.edit_message_text(
+        "🛡️ **إدارة المستخدمين**\n\n"
+        "اختر العملية التي تريد تنفيذها:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_ban_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'user_mgmt'
+    context.user_data['wizard_step'] = 'ban_user'
+    
+    await query.edit_message_text(
+        "🛑 **حظر مستخدم**\n\n"
+        "📌 أرسل الآن رقم المستخدم (User ID) الذي تريد حظره:\n"
+        "مثال: `5047634413`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_users_menu")]]),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_unban_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'user_mgmt'
+    context.user_data['wizard_step'] = 'unban_user'
+    
+    await query.edit_message_text(
+        "✅ **فك حظر مستخدم**\n\n"
+        "📌 أرسل الآن رقم المستخدم (User ID) الذي تريد فك حظره:\n"
+        "مثال: `5047634413`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_users_menu")]]),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_addpts_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'user_mgmt'
+    context.user_data['wizard_step'] = 'addpts_id'
+    
+    await query.edit_message_text(
+        "➕ **إضافة نقاط لمستخدم**\n\n"
+        "📌 **الخطوة 1/2:** أرسل رقم المستخدم (User ID):\n"
+        "مثال: `5047634413`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_users_menu")]]),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_subpts_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'user_mgmt'
+    context.user_data['wizard_step'] = 'subpts_id'
+    
+    await query.edit_message_text(
+        "➖ **خصم نقاط من مستخدم**\n\n"
+        "📌 **الخطوة 1/2:** أرسل رقم المستخدم (User ID):\n"
+        "مثال: `5047634413`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_users_menu")]]),
+        parse_mode="Markdown"
+    )
+
+
+# ==========================================
+# ADVANCED SETTINGS MENU
+# ==========================================
+
+async def admin_advanced_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    api_key = db.get_setting('google_api_key', 'غير محدد')
+    commission = db.get_setting('commission_pct', '20')
+    min_wd = db.get_setting('min_withdraw', '500')
+    
+    keyboard = [
+        [InlineKeyboardButton("🤖 مفتاح Gemini API", callback_data="admin_wiz_apikey")],
+        [InlineKeyboardButton("💸 عمولة الترويج (%)", callback_data="admin_wiz_commission"),
+         InlineKeyboardButton("🔻 الحد الأدنى للسحب", callback_data="admin_wiz_minwd")],
+        [InlineKeyboardButton("🔙 العودة للقائمة", callback_data="admin_main")]
+    ]
+    
+    await query.edit_message_text(
+        f"🔧 **الإعدادات المتقدمة**\n\n"
+        f"🤖 **مفتاح API:** `{api_key[:15]}...`\n"
+        f"💸 **عمولة الترويج:** `{commission}%`\n"
+        f"🔻 **الحد الأدنى للسحب:** `{min_wd}` نقطة\n\n"
+        f"اختر الإعداد الذي تريد تعديله:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_apikey_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'adv_settings'
+    context.user_data['wizard_step'] = 'set_apikey'
+    
+    await query.edit_message_text(
+        "🤖 **تغيير مفتاح Gemini API**\n\n"
+        "📌 أرسل الآن المفتاح الجديد:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_advanced_settings")]]),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_commission_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'adv_settings'
+    context.user_data['wizard_step'] = 'set_commission'
+    
+    keyboard = [
+        [InlineKeyboardButton("10%", callback_data="advset_comm_10"),
+         InlineKeyboardButton("15%", callback_data="advset_comm_15"),
+         InlineKeyboardButton("20%", callback_data="advset_comm_20")],
+        [InlineKeyboardButton("25%", callback_data="advset_comm_25"),
+         InlineKeyboardButton("30%", callback_data="advset_comm_30"),
+         InlineKeyboardButton("50%", callback_data="advset_comm_50")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_advanced_settings")]
+    ]
+    
+    curr = db.get_setting('commission_pct', '20')
+    await query.edit_message_text(
+        f"💸 **تغيير عمولة الترويج**\n\n"
+        f"العمولة الحالية: **{curr}%**\n\n"
+        f"📌 اختر النسبة الجديدة:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def advset_commission_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    val = query.data.replace("advset_comm_", "")
+    db.set_setting('commission_pct', val)
+    db.log_admin_action(c.ADMIN_ID, "SET_COMMISSION", None)
+    
+    # Clean wizard
+    for key in ['wizard', 'wizard_step']:
+        context.user_data.pop(key, None)
+    
+    await query.edit_message_text(
+        f"✅ **تم تحديث عمولة الترويج إلى {val}% بنجاح!**",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔧 الإعدادات المتقدمة", callback_data="admin_advanced_settings")],
+            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+        ]),
+        parse_mode="Markdown"
+    )
+
+async def admin_wiz_minwd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'adv_settings'
+    context.user_data['wizard_step'] = 'set_minwd'
+    
+    keyboard = [
+        [InlineKeyboardButton("100", callback_data="advset_minwd_100"),
+         InlineKeyboardButton("500", callback_data="advset_minwd_500"),
+         InlineKeyboardButton("1000", callback_data="advset_minwd_1000")],
+        [InlineKeyboardButton("2000", callback_data="advset_minwd_2000"),
+         InlineKeyboardButton("5000", callback_data="advset_minwd_5000"),
+         InlineKeyboardButton("10000", callback_data="advset_minwd_10000")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_advanced_settings")]
+    ]
+    
+    curr = db.get_setting('min_withdraw', '500')
+    await query.edit_message_text(
+        f"🔻 **تغيير الحد الأدنى للسحب**\n\n"
+        f"الحد الحالي: **{curr}** نقطة\n\n"
+        f"📌 اختر الحد الجديد:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def advset_minwd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    val = query.data.replace("advset_minwd_", "")
+    db.set_setting('min_withdraw', val)
+    db.log_admin_action(c.ADMIN_ID, "SET_MIN_WITHDRAW", None)
+    
+    for key in ['wizard', 'wizard_step']:
+        context.user_data.pop(key, None)
+    
+    await query.edit_message_text(
+        f"✅ **تم تحديث الحد الأدنى للسحب إلى {val} نقطة بنجاح!**",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔧 الإعدادات المتقدمة", callback_data="admin_advanced_settings")],
+            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+        ]),
+        parse_mode="Markdown"
+    )
