@@ -299,27 +299,299 @@ async def admin_buttons_keyboard():
     
     keyboard = [
         [InlineKeyboardButton("📋 مراجعة الطلبات", callback_data="admin_pending")],
+        [InlineKeyboardButton("➕ إضافة مهمة", callback_data="admin_add_task_start"),
+         InlineKeyboardButton("📦 إضافة باقة", callback_data="admin_add_pkg_start")],
         [InlineKeyboardButton("⚙️ إعدادات النظام", callback_data="admin_settings"), 
          InlineKeyboardButton("📈 الإحصائيات", callback_data="admin_stats")],
         [InlineKeyboardButton("📢 إرسال جماعي", callback_data="admin_broadcast"),
-         InlineKeyboardButton("📦 إضافة باقة", callback_data="admin_add_pkg_start")],
-        [InlineKeyboardButton("💾 نسخة احتياطية", callback_data="admin_backup"),
-         InlineKeyboardButton(m_text, callback_data="toggle_maintenance")],
-        [InlineKeyboardButton("🔄 تحديث البوت", callback_data="admin_refresh")],
+         InlineKeyboardButton("💾 نسخة احتياطية", callback_data="admin_backup")],
+        [InlineKeyboardButton(m_text, callback_data="toggle_maintenance"),
+         InlineKeyboardButton("🔄 تحديث البوت", callback_data="admin_refresh")],
         [InlineKeyboardButton("📜 سجل الأمان", callback_data="admin_logs_view")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
-async def admin_add_package_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ==========================================
+# INTERACTIVE WIZARD: ADD TASK (Step-by-step)
+# ==========================================
+
+async def admin_add_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
     query = update.callback_query
     await query.answer()
     
+    context.user_data['wizard'] = 'add_task'
+    context.user_data['wizard_step'] = 'task_type'
+    
+    keyboard = [
+        [InlineKeyboardButton("👥 Follow", callback_data="wiz_ttype_Follow"),
+         InlineKeyboardButton("❤️ Like", callback_data="wiz_ttype_Like")],
+        [InlineKeyboardButton("💬 Comment", callback_data="wiz_ttype_Comment"),
+         InlineKeyboardButton("🔁 Share", callback_data="wiz_ttype_Share")],
+        [InlineKeyboardButton("👁️ View", callback_data="wiz_ttype_View"),
+         InlineKeyboardButton("📥 Download", callback_data="wiz_ttype_Download")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]
+    ]
+    
     await query.edit_message_text(
-        "📦 **إضافة باقة شحن جديدة**\n\nمن فضلك استخدم الأمر التالي:\n`/add_package [النقاط] [السعر] [العملة]`\n\nمثال: `/add_package 1000 5000 SDG`",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data="admin_main")]]),
+        "➕ **معالج إضافة مهمة جديدة**\n\n"
+        "📌 **الخطوة 1/4:** اختر نوع المهمة:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
+
+async def wizard_task_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    task_type = query.data.replace("wiz_ttype_", "")
+    context.user_data['wiz_task_type'] = task_type
+    context.user_data['wizard_step'] = 'task_url'
+    
+    await query.edit_message_text(
+        f"➕ **معالج إضافة مهمة جديدة**\n\n"
+        f"✅ النوع: **{task_type}**\n\n"
+        f"📌 **الخطوة 2/4:** أرسل الآن رابط المهمة (URL):\n"
+        f"مثال: `https://tiktok.com/@user/video/123`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]]),
+        parse_mode="Markdown"
+    )
+
+async def wizard_task_reward_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    reward = int(query.data.replace("wiz_treward_", ""))
+    context.user_data['wiz_task_reward'] = reward
+    context.user_data['wizard_step'] = 'task_count'
+    
+    keyboard = [
+        [InlineKeyboardButton("50", callback_data="wiz_tcount_50"),
+         InlineKeyboardButton("100", callback_data="wiz_tcount_100"),
+         InlineKeyboardButton("200", callback_data="wiz_tcount_200")],
+        [InlineKeyboardButton("500", callback_data="wiz_tcount_500"),
+         InlineKeyboardButton("1000", callback_data="wiz_tcount_1000")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]
+    ]
+    
+    tt = context.user_data.get('wiz_task_type', '')
+    url = context.user_data.get('wiz_task_url', '')
+    
+    await query.edit_message_text(
+        f"➕ **معالج إضافة مهمة جديدة**\n\n"
+        f"✅ النوع: **{tt}**\n"
+        f"✅ الرابط: `{url[:40]}...`\n"
+        f"✅ الجائزة: **{reward}** نقطة\n\n"
+        f"📌 **الخطوة 4/4:** اختر عدد المشاركين المطلوب:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def wizard_task_count_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    count = int(query.data.replace("wiz_tcount_", ""))
+    
+    tt = context.user_data.get('wiz_task_type', '')
+    url = context.user_data.get('wiz_task_url', '')
+    reward = context.user_data.get('wiz_task_reward', 0)
+    
+    try:
+        db.add_task(url, tt, reward, count)
+        db.log_admin_action(c.ADMIN_ID, "ADD_TASK", None)
+        
+        await query.edit_message_text(
+            f"🎉 **تم إضافة المهمة بنجاح!**\n\n"
+            f"📝 النوع: **{tt}**\n"
+            f"🔗 الرابط: {url}\n"
+            f"💰 الجائزة: **{reward}** نقطة\n"
+            f"👥 العدد المطلوب: **{count}** مشارك",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ إضافة مهمة أخرى", callback_data="admin_add_task_start")],
+                [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+            ]),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ **خطأ أثناء إضافة المهمة:**\n`{str(e)}`",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data="admin_main")]]),
+            parse_mode="Markdown"
+        )
+    
+    # Clean wizard state
+    for key in ['wizard', 'wizard_step', 'wiz_task_type', 'wiz_task_url', 'wiz_task_reward']:
+        context.user_data.pop(key, None)
+
+
+# =============================================
+# INTERACTIVE WIZARD: ADD PACKAGE (Step-by-step)
+# =============================================
+
+async def admin_add_package_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['wizard'] = 'add_pkg'
+    context.user_data['wizard_step'] = 'pkg_points'
+    
+    keyboard = [
+        [InlineKeyboardButton("100", callback_data="wiz_pkg_pts_100"),
+         InlineKeyboardButton("500", callback_data="wiz_pkg_pts_500"),
+         InlineKeyboardButton("1000", callback_data="wiz_pkg_pts_1000")],
+        [InlineKeyboardButton("2000", callback_data="wiz_pkg_pts_2000"),
+         InlineKeyboardButton("5000", callback_data="wiz_pkg_pts_5000"),
+         InlineKeyboardButton("10000", callback_data="wiz_pkg_pts_10000")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]
+    ]
+    
+    await query.edit_message_text(
+        "📦 **معالج إضافة باقة شحن جديدة**\n\n"
+        "📌 **الخطوة 1/3:** اختر عدد النقاط للباقة:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def wizard_pkg_points_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    pts = int(query.data.replace("wiz_pkg_pts_", ""))
+    context.user_data['wiz_pkg_pts'] = pts
+    context.user_data['wizard_step'] = 'pkg_currency'
+    
+    keyboard = [
+        [InlineKeyboardButton("🇸🇩 SDG", callback_data="wiz_pkg_curr_SDG"),
+         InlineKeyboardButton("💵 USD", callback_data="wiz_pkg_curr_USD")],
+        [InlineKeyboardButton("💶 EUR", callback_data="wiz_pkg_curr_EUR"),
+         InlineKeyboardButton("🪙 USDT", callback_data="wiz_pkg_curr_USDT")],
+        [InlineKeyboardButton("🇸🇦 SAR", callback_data="wiz_pkg_curr_SAR"),
+         InlineKeyboardButton("🇦🇪 AED", callback_data="wiz_pkg_curr_AED")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]
+    ]
+    
+    await query.edit_message_text(
+        f"📦 **معالج إضافة باقة شحن جديدة**\n\n"
+        f"✅ النقاط: **{pts}** نقطة\n\n"
+        f"📌 **الخطوة 2/3:** اختر العملة:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def wizard_pkg_currency_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != c.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    
+    curr = query.data.replace("wiz_pkg_curr_", "")
+    context.user_data['wiz_pkg_curr'] = curr
+    context.user_data['wizard_step'] = 'pkg_price'
+    
+    pts = context.user_data.get('wiz_pkg_pts', 0)
+    
+    await query.edit_message_text(
+        f"📦 **معالج إضافة باقة شحن جديدة**\n\n"
+        f"✅ النقاط: **{pts}** نقطة\n"
+        f"✅ العملة: **{curr}**\n\n"
+        f"📌 **الخطوة 3/3:** أرسل الآن سعر الباقة (رقم فقط):\n"
+        f"مثال: `5000`",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]]),
+        parse_mode="Markdown"
+    )
+
+
+# ==========================================
+# WIZARD TEXT INPUT HANDLER
+# ==========================================
+
+async def handle_wizard_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles text input for all admin wizards (add_task URL, add_pkg price, etc.)"""
+    if update.effective_user.id != c.ADMIN_ID:
+        return False
+    
+    wizard = context.user_data.get('wizard')
+    step = context.user_data.get('wizard_step')
+    if not wizard or not step:
+        return False
+    
+    text = update.message.text.strip()
+    
+    # --- ADD TASK: Step 2 (URL input) ---
+    if wizard == 'add_task' and step == 'task_url':
+        context.user_data['wiz_task_url'] = text
+        context.user_data['wizard_step'] = 'task_reward'
+        
+        tt = context.user_data.get('wiz_task_type', '')
+        keyboard = [
+            [InlineKeyboardButton("3", callback_data="wiz_treward_3"),
+             InlineKeyboardButton("5", callback_data="wiz_treward_5"),
+             InlineKeyboardButton("10", callback_data="wiz_treward_10")],
+            [InlineKeyboardButton("15", callback_data="wiz_treward_15"),
+             InlineKeyboardButton("20", callback_data="wiz_treward_20"),
+             InlineKeyboardButton("50", callback_data="wiz_treward_50")],
+            [InlineKeyboardButton("🔙 إلغاء", callback_data="admin_main")]
+        ]
+        
+        await update.message.reply_text(
+            f"➕ **معالج إضافة مهمة جديدة**\n\n"
+            f"✅ النوع: **{tt}**\n"
+            f"✅ الرابط: `{text[:40]}...`\n\n"
+            f"📌 **الخطوة 3/4:** اختر الجائزة (نقاط) لكل مشارك:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return True
+    
+    # --- ADD PACKAGE: Step 3 (Price input) ---
+    if wizard == 'add_pkg' and step == 'pkg_price':
+        try:
+            price = float(text)
+        except ValueError:
+            await update.message.reply_text("❌ **أرسل رقماً صحيحاً فقط (مثل 5000).**")
+            return True
+        
+        pts = context.user_data.get('wiz_pkg_pts', 0)
+        curr = context.user_data.get('wiz_pkg_curr', 'SDG')
+        
+        instr = db.get_setting('bankak_details') if curr == "SDG" else db.get_setting('usdt_wallet', 'Contact admin.')
+        
+        try:
+            db.add_package(pts, price, curr, instr)
+            db.log_admin_action(c.ADMIN_ID, "ADD_PACKAGE", None)
+            
+            await update.message.reply_text(
+                f"🎉 **تم إضافة الباقة بنجاح!**\n\n"
+                f"📦 النقاط: **{pts}**\n"
+                f"💰 السعر: **{price} {curr}**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📦 إضافة باقة أخرى", callback_data="admin_add_pkg_start")],
+                    [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="admin_main")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            await update.message.reply_text(f"❌ **خطأ:** `{str(e)}`", parse_mode="Markdown")
+        
+        # Clean wizard state
+        for key in ['wizard', 'wizard_step', 'wiz_pkg_pts', 'wiz_pkg_curr']:
+            context.user_data.pop(key, None)
+        return True
+    
+    return False
 
 
 
@@ -732,6 +1004,10 @@ async def admin_broadcast_start(update: Update, context: ContextTypes.DEFAULT_TY
         return
     query = update.callback_query
     await query.answer()
+    
+    # Clear any wizard state before starting broadcast
+    for key in ['wizard', 'wizard_step']:
+        context.user_data.pop(key, None)
     
     context.user_data['admin_action'] = 'broadcasting'
     await query.edit_message_text(

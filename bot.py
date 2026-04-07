@@ -432,7 +432,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_menu_click or text.startswith("/"):
         for key in ['state', 'wth_step', 'wth_method', 'wth_amount', 
                     'promo_step', 'promo_url', 'promo_budget', 'promo_reward',
-                    'awaiting_admin_setting', 'replyING_to', 'admin_action']:
+                    'awaiting_admin_setting', 'replyING_to', 'admin_action',
+                    'wizard', 'wizard_step', 'wiz_task_type', 'wiz_task_url',
+                    'wiz_task_reward', 'wiz_pkg_pts', 'wiz_pkg_curr']:
             context.user_data.pop(key, None)
         
         if text == "/cancel":
@@ -441,6 +443,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2. Admin Logic
     if user_id == c.ADMIN_ID:
+        if await admin.handle_wizard_input(update, context):
+            return
         if context.user_data.get('awaiting_admin_setting'):
             await admin.handle_admin_setting_input(update, context)
             return
@@ -542,6 +546,14 @@ def main():
     application.add_handler(CallbackQueryHandler(admin.admin_setting_edit_start, pattern="^set_"))
     application.add_handler(CallbackQueryHandler(admin.admin_broadcast_start, pattern="^admin_broadcast$"))
     application.add_handler(CallbackQueryHandler(admin.admin_add_package_start, pattern="^admin_add_pkg_start$"))
+    application.add_handler(CallbackQueryHandler(admin.admin_add_task_start, pattern="^admin_add_task_start$"))
+    # Wizard: Task type, reward, count
+    application.add_handler(CallbackQueryHandler(admin.wizard_task_type_callback, pattern="^wiz_ttype_"))
+    application.add_handler(CallbackQueryHandler(admin.wizard_task_reward_callback, pattern="^wiz_treward_"))
+    application.add_handler(CallbackQueryHandler(admin.wizard_task_count_callback, pattern="^wiz_tcount_"))
+    # Wizard: Package points, currency
+    application.add_handler(CallbackQueryHandler(admin.wizard_pkg_points_callback, pattern="^wiz_pkg_pts_"))
+    application.add_handler(CallbackQueryHandler(admin.wizard_pkg_currency_callback, pattern="^wiz_pkg_curr_"))
     application.add_handler(CallbackQueryHandler(admin.admin_logs_view_callback, pattern="^admin_logs_view$"))
     application.add_handler(CallbackQueryHandler(admin.pending_dashboard, pattern="^admin_pending$"))
     application.add_handler(CallbackQueryHandler(admin.toggle_maintenance_callback, pattern="^toggle_maintenance$"))
@@ -571,7 +583,7 @@ def main():
     
     # Start the Bot
     logger.info("----------------------------------------")
-    logger.info("🚀 BOT IS STARTING... VERSION: 1.6-Stable")
+    logger.info("🚀 BOT IS STARTING... VERSION: 2.0-Wizards")
     logger.info(f"👮 CONFIGURED ADMIN_ID: {c.ADMIN_ID}")
     logger.info("----------------------------------------")
     application.run_polling()
