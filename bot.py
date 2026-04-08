@@ -38,7 +38,7 @@ def main_menu_keyboard(user_id):
             ["📜 History", "💰 Withdraw"],
             ["👤 Account", "📊 Stats"],
             ["💎 VIP", "🌐 Language"],
-            ["💬 Support"]
+            ["📖 How to Earn?", "💬 Support"]
         ]
     else:
         keyboard = [
@@ -48,7 +48,7 @@ def main_menu_keyboard(user_id):
             ["📜 السجل", "💰 سحب الأرباح"],
             ["👤 حسابي", "📊 الإحصائيات"],
             ["💎 VIP", "🌐 اللغة"],
-            ["💬 الدعم الفني"]
+            ["📖 كيف أربح؟", "💬 الدعم الفني"]
         ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -401,6 +401,126 @@ async def show_all_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.effective_message.reply_text(get_str(user_id, 'TASKS_MENU_MSG'), reply_markup=reply_markup, parse_mode="Markdown")
 
+
+# --- HOW TO EARN GUIDE ---
+async def show_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    lang = db.get_user_lang(user_id)
+    
+    keyboard = [
+        [InlineKeyboardButton("🎥 كيف أنفذ المهام وأكسب النقاط؟", callback_data="guide_tasks")],
+        [InlineKeyboardButton("📢 ترويج حسابك وكسب متابعين حقيقيين", callback_data="guide_promo")],
+        [InlineKeyboardButton("💰 كيف تسحب أرباحك بسهولة؟", callback_data="guide_withdraw")],
+        [InlineKeyboardButton("👥 نظام الإحالة ومضاعفة الأرباح", callback_data="guide_referral")],
+        [InlineKeyboardButton("💎 VIP: كيف تضاعف أرباحك ضعفين؟", callback_data="guide_vip")],
+    ]
+    
+    text = (
+        "📖 **دليل الاستخدام والربح**\n\n"
+        "مرحباً بك! هذا الدليل يشرح لك كيف تستفيد من المنصة وتحقق أكبر ربح.\n\n"
+        "اختر القسم الذي تريده للمعرفة أكثر:"
+    )
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    else:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+
+async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = update.effective_user.id
+    await query.answer()
+    
+    section = query.data.replace("guide_", "")
+    back_btn = [[InlineKeyboardButton("🔙 رجوع", callback_data="guide_main")]]
+    
+    if section == "tasks":
+        text = (
+            "🎥 **دليل تنفيذ المهام**\n\n"
+            "📌 المهام هي طلبات طرف أصحاب حسابات تيك توك يريدون متابعين \n"
+            "حقيقيين ولايكات وتعليقات.\n\n"
+            "**خطوات التنفيذ:**\n\n"
+            "1️⃣ اضغط على “🚀 تنفيذ مهام” من القائمة \n"
+            "2️⃣ اختر مهمة من القائمة (متابعة حساب تيك توك، لايك، كومنت)\n"
+            "3️⃣ افتح الرابط ونفذ المهمة فعلاً (like/follow/comment)\n"
+            "4️⃣ خذ لقطة شاشة تثبت تنفيذك \n"
+            "5️⃣ أرسل الصورة للبوت وانتظر موافقة الإدارة\n\n"
+            "💰 **بعد الموافقة:** تضاف النقاط تلقائياً لرصيدك!\n\n"
+            "⚠️ **تحذير:** فقط صور تثبت تنفيذك الحقيقي — الصور المزيفة تؤدي لحظر الحساب."
+        )
+    
+    elif section == "promo":
+        text = (
+            "📢 **دليل ترويج حسابك**\n\n"
+            "📌 نظام الترويج يتيح لك إضافة مهمة لحسابك والحصول على \n"
+            "متابعين حقيقيين من مستخدمي المنصة.\n\n"
+            "**خطوات الترويج:**\n\n"
+            "1️⃣ اضغط على “🚀 ترويج” من القائمة\n"
+            "2️⃣ أرسل رابط حسابك على تيك توك\n"
+            "3️⃣ حدد نوع التفاعل المطلوب (متابعة / لايك / كومنت)\n"
+            "4️⃣ حدد ميزانيتك (عدد النقاط التي تريد إنفاقها)\n"
+            "5️⃣ ستظهر مهمتك للمستخدمين في قائمة المهام\n\n"
+            "💰 **كيف تختار الميزانية:**\n"
+            "• 1 متابع = عدد معين من النقاط\n"
+            "• كلما كانت ميزانيتك أكبر، حصلت على متابعين أكثر\n\n"
+            "⚠️ المنصة تأخذ عمولة بسيطة من ميزانيتك كخدمة."
+        )
+    
+    elif section == "withdraw":
+        min_wd = db.get_setting('min_withdraw', '500')
+        text = (
+            "💰 **دليل سحب الأرباح**\n\n"
+            f"📌 الحد الأدنى للسحب: **{min_wd} نقطة**\n\n"
+            "**خطوات السحب:**\n\n"
+            "1️⃣ اضغط على “💰 سحب الأرباح” من القائمة\n"
+            "2️⃣ اختر طريقة السحب (بنكك / فوري / USDT)\n"
+            "3️⃣ أرسل عدد النقاط المطلوب سحبها\n"
+            "4️⃣ أرسل بيانات حسابك البنكي أو رقم محفظتك\n"
+            "5️⃣ انتظر موافقة الإدارة وسيتم التحويل خلال 24 ساعة\n\n"
+            "💡 **نصيحة:** تأكد من الرصيد قبل السحب عبر زر “💰 رصيد” أو “👤 حسابي”."
+        )
+    
+    elif section == "referral":
+        ref_pts = db.get_setting('referral_v1_reward', '5')
+        ref_pts2 = db.get_setting('referral_v2_reward', '2')
+        text = (
+            "👥 **نظام الإحالة**\n\n"
+            f"📌 كل مستخدم تدعوه: **{ref_pts} نقطة لك**\n"
+            f"📌 كل مستخدم تتداعى من طرف من دعوته: **{ref_pts2} نقطة لك**\n\n"
+            "**خطوات الإحالة:**\n\n"
+            "1️⃣ اضغط على “👥 دعوة” للحصول على رابطك الخاص\n"
+            "2️⃣ شارك الرابط مع أصدقائك عبر واتسآب وتيك توك\n"
+            "3️⃣ عندما ينضم صديقك عبر رابطك، تحصل على نقاطك فوراً\n\n"
+            "💡 **نصيحة:** كلما دعوت أكثر، كلما ربحت أكثر بدون جهد!"
+        )
+    
+    elif section == "vip":
+        v_price = db.get_setting('vip_price', '1000')
+        v_mult = db.get_setting('vip_multiplier', '2.0')
+        text = (
+            "💎 **عضوية VIP**\n\n"
+            f"📌 سعر الاشتراك: **{v_price} نقطة**\n"
+            f"📌 مضاعف الأرباح: **{v_mult}x**\n\n"
+            "**مزايا العضوية:**\n\n"
+            f"⭐ **مضاعفة النقاط:** كل مهمة تكسبك ضعف النقاط عضو عادي!\n"
+            "⚡ **أولوية المراجعة:** طلباتك تراجع بشكل أسرع!\n"
+            "🏆 **بادج VIP حصرية** تجعلك متميزاً\n\n"
+            "**كيف تشترك:**\n"
+            "1️⃣ اضغط على “💎 VIP” من القائمة\n"
+            f"2️⃣ ادفع {v_price} نقطة \n"
+            "3️⃣ استمتع بالتميز والأرباح الأضعاف!"
+        )
+    
+    elif section == "main":
+        await show_guide(update, context)
+        return
+    
+    else:
+        text = "ℹ️ تفاصيل غير متاحة حالياً."
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(back_btn), parse_mode="Markdown")
+
+
 # --- TEXT HANDLER FOR KEYBOARD BUTTONS ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_security(update, context):
@@ -499,6 +619,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start_language_picker(update, context)
     elif any(kw in text for kw in ["إحصائيات", "Stats"]):
         await public_stats(update, context)
+    elif any(kw in text for kw in ["أربح", "Earn", "كيف", "How"]):
+        await show_guide(update, context)
 
 # --- MAIN ---
 def main():
@@ -597,9 +719,12 @@ def main():
     
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
+    # Guide callbacks
+    application.add_handler(CallbackQueryHandler(guide_callback, pattern="^guide_"))
+    
     # Start the Bot
     logger.info("----------------------------------------")
-    logger.info("🚀 BOT IS STARTING... VERSION: 2.0-Wizards")
+    logger.info("🚀 BOT IS STARTING... VERSION: 3.0-FullInteractive")
     logger.info(f"👮 CONFIGURED ADMIN_ID: {c.ADMIN_ID}")
     logger.info("----------------------------------------")
     application.run_polling()
