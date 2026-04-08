@@ -325,6 +325,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
+async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Force refresh the main menu keyboard - useful for existing users."""
+    user_id = update.effective_user.id
+    await update.message.reply_text(
+        "📋 **تم تحديث القائمة!** ستجد الآن زر 📖 **كيف أربح؟** في قائمتك.",
+        reply_markup=main_menu_keyboard(user_id),
+        parse_mode="Markdown"
+    )
+
 # --- PROFILE HANDLER ---
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -544,7 +553,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "VIP", "Support", "دعم", "Daily", "هدية",
         "Withdraw", "سحب", "Buy", "شراء", "Promote", "ترويج",
         "History", "سجل", "Invite", "دعوة", "Language", "لغة", 
-        "Stats", "إحصائيات", "/cancel", "/start"
+        "Stats", "إحصائيات", "أربح", "Earn", "كيف", "How",
+        "/cancel", "/start"
     ]
     
     is_menu_click = any(kw in text for kw in menu_keywords)
@@ -628,6 +638,7 @@ def main():
     application = Application.builder().token(c.TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("menu", show_menu))
     application.add_handler(CommandHandler("daily", daily_gift))
     application.add_handler(CommandHandler("points", profile))
     application.add_handler(CommandHandler("invite", invite))
